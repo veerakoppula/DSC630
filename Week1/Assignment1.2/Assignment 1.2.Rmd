@@ -1,0 +1,181 @@
+---
+title: "Assignment 1.2"
+author: "Veera Koppula"
+date: "12/4/2021"
+output:
+  pdf_document: default
+---
+
+```{r eval=TRUE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The first assignment is a review of graphical and data anlalysis. This purpose of this assignment is to provide a refresher of R and/or Python. The assignment is divided into three sections. Using R and/or Python, complete the following steps.
+
+### 1. Import, Plot, Summarize, and Save Data
+###Using the US Bureau of Labor Statistics data, choose a dataset that interests you. Then generate summary statistics for 2 variables, plot some of the features (e.g., histograms, box plots, density plots, etc.) of several variables, and save the data locally as CSV files.
+
+#### Import the Data saved from BLS data store
+```{r eval=TRUE, echo=FALSE}
+setwd("/Users/veerareddykoppula/Downloads/Desktop/BRUIN/630/Assignment/Week1")
+library('magrittr') 
+
+men <- 'data/SeriesReport-20211204141549_39e88e.xlsx'
+women <- 'data/SeriesReport-20211204141601_b6a497.xlsx'
+
+# function to read and prepare data for analysis
+preparetext <- function(path, index, datarow){
+
+  # read excel data file
+  df <- xlsx::read.xlsx(path,
+                        sheetIndex = index,
+                        stringsAsFactors = FALSE)
+  
+  # store value for gender (to be added later)
+  gender <- df %>% 
+    dplyr::filter(.[,1]=='Gender:') %>% 
+    as.character() %>% 
+    .[2]
+  
+  # store value for type (to be added later)
+  type <- df %>% 
+    dplyr::filter(.[,1]=='Type of estimate:') %>% 
+    as.character() %>% 
+    .[2]
+  
+  # store value for activity (to be added later)
+  activity <- df %>% 
+    dplyr::filter(.[,1]=='Activity:') %>% 
+    as.character() %>% 
+    .[2]
+  
+  # remove redundant rows
+  df <- df %>% 
+    dplyr::slice(datarow:nrow(.))
+  
+  # set first row as column name and remove first row
+  colnames(df) <- as.character(unlist(df[1,]))
+  df <- df[-1, ]
+  
+  # add subsequent data
+  df <- df %>% 
+    dplyr::mutate(Gender = gender,
+                  Type = type,
+                  Activity = activity)
+  
+  return(df)
+
+}
+
+```
+
+#### merging the two data files to create one file for Household Time Use data as timeuse
+```{r eval=TRUE, echo=FALSE}
+timeuse <- preparetext(men, 1, 11) %>% 
+  dplyr::bind_rows(preparetext(women, 1, 11)) %>% 
+  dplyr::mutate(Estimate = as.numeric(Estimate),
+                `Standard Error` = as.numeric(`Standard Error`))
+```
+
+#### Validating structure of Data
+```{r eval=TRUE, echo=FALSE}
+str(timeuse)
+```
+
+
+#### Generating summary statistics for the variables, I will print and add the details at the end of Step3 for the assignemnt
+```{r eval=TRUE, echo=FALSE}
+# Suppressing unnecessary warnings
+options(warn=-1)
+
+# Check data quality and basic statistics
+stats  <- psych::describe(timeuse)
+
+# Check detail descriptive statistics
+stats_detail  <- Hmisc::describe(timeuse)
+```
+
+Based on the data review there are 2 continuous variables, Estimate and Standard Error. Rest of the 5 variables are discrete. I would like to create some basic plots for the 2 continous variables.
+```{r eval=TRUE, echo=FALSE}
+# set output figure size
+options(repr.plot.width = 4, repr.plot.height = 3)
+
+# Boxplot of the two continuous variables
+DataExplorer::plot_boxplot(timeuse, by = 'Estimate')
+
+# Histogram of the continuous variables (Estimate and Standard Error)
+DataExplorer::plot_histogram(timeuse)
+
+# density plot of estimate
+par(mar=c(0,1,2,3))
+plot(density(timeuse$Estimate) , main='Density of Estimates' , xlab="", ylim=c(0,2) , xaxt="n", las=1 , col="slateblue1" , lwd=4 )
+```
+
+
+### 2. Explore Some Bivariate Relations
+###Use the same dataset within the same website to explore some bivariate relations (e.g. bivariate plot, correlation, table cross table etc.)
+
+```{r eval=TRUE, echo=FALSE}
+# explore bivariate relationship using cross table
+gmodels::CrossTable(timeuse$Estimate, timeuse$`Standard Error`, expected = TRUE)
+```
+ 
+150.5167 is a very high Chi value, meaning the data (Estimate and Standard Error) does not fit very well.
+
+The p-value is relatively large which indicates weak evidence against the null hypothesis, so we fail to reject the null hypothesis.
+
+Now let us take a look at the descriptive statistics of the erntire dataset stored earlier.
+
+### 3. Organize a Data Report
+#### Generate a summary report. Make sure to include: summary for every variable, structure and type of data elements, discuss four results of your data.
+
+```{r eval=TRUE, echo=FALSE}
+#Printing stats details
+print(stats_detail)
+```
+### Analysis:
+
+Year - We have data between 2009-2019 and two instances per each year  for Men/Women.
+
+Period - The period is a single value within tha data set.
+
+Estimate - The estimate has somewhat even distribution which is not surprising given the data has men and women in equal proportion.
+
+Standard Error - Standard Error picks between 0.033, 0.034,0.035 and 0.040.
+
+Gender - The dataset has equal weightage on gender.
+
+Since the summary descriptive statistics (stats) is generated as a data frame, I would output that in an excel file. But first I want to check what is in it.
+
+
+```{r eval=TRUE, echo=FALSE}
+# Printing stats
+print(stats)
+```
+
+The variable names are converted into row names. I want to assign them to the first column of the dataf frame.
+
+```{r eval=TRUE, echo=FALSE}
+# Printing stats
+# Convert the row name to first column
+stats$variable <- rownames(stats)
+
+# Reorder the columns to show variable as the first column
+stats <- stats[c(14,1:13)]
+
+# Convert infinity to NA
+stats <- do.call(data.frame,lapply(stats, function(x) replace(x, is.infinite(x),NA)))
+
+print(stats)
+```
+#### Saving the summary output into a XLS
+
+```{r eval=TRUE, echo=FALSE}
+# save the descriptive statistics in an excel file
+library("xlsx")
+xlsx::write.xlsx(stats, 
+                 'output/Assignment 1.2.xlsx', 
+                 sheetName = 'Descriptive Statistics',
+                 row.names = FALSE,
+                 append = TRUE)
+```
